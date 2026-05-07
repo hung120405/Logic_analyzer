@@ -1,0 +1,35 @@
+.program logic_analyzer
+
+; Dùng .wrap_target/.wrap để PIO tự động lặp lại vòng vô tận
+; mà không tốn thêm 1 cycle cho lệnh jmp — chạy đúng 25MHz
+.wrap_target
+    in pins, 8
+.wrap
+    
+% c-sdk {
+static inline void logic_analyzer_program_init(PIO pio, uint sm, uint offset, uint pin_base, float clk_div) {
+    pio_sm_config c = logic_analyzer_program_get_default_config(offset);
+
+    // Cấu hình chân bắt đầu đọc (GPIO 2)
+    sm_config_set_in_pins(&c, pin_base);
+    
+    for(uint i = 0; i < 8; i++) {
+        pio_gpio_init(pio, pin_base + i);
+    }
+
+    // CẤU HÌNH AUTO-PUSH CỰC KỲ QUAN TRỌNG:
+    // shift_right = false, auto_push = true, push_threshold = 32
+    // Ý nghĩa: Cứ đọc đủ 4 mẫu 8-bit (thành 32-bit) thì PIO tự động nhả ra cho DMA
+    sm_config_set_in_shift(&c, false, true, 32);
+
+    // Ghép khối PIO vào các chân GPIO
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_base, 8, false);
+
+    // Ép xung PIO. Ví dụ: Chip chạy 150MHz, chia 6 = 25 MHz.
+    sm_config_set_clkdiv(&c, clk_div);
+
+    // Khởi động State Machine
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
