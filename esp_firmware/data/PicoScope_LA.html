@@ -1,0 +1,2060 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>PicoScope LA — Logic Analyzer</title>
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg-0:#0a0d12;
+    --bg-1:#0f131a;
+    --bg-2:#151b25;
+    --bg-3:#1c2533;
+    --line:#222d3d;
+    --line-soft:#1a2230;
+    --text:#e6edf6;
+    --text-dim:#8a96a8;
+    --text-mute:#5a677a;
+    --accent:#ff3344;
+    --accent-soft:#ff334422;
+    --amber:#ffb020;
+    --grid:#1a2230;
+    --grid-strong:#26344a;
+    --ok:#3ddc84;
+
+    /* Channel colors — pulled from oscilloscope/Saleae palette ideas */
+    --c0:#ff5b6a;
+    --c1:#ffb020;
+    --c2:#ffe066;
+    --c3:#3ddc84;
+    --c4:#3dc1d3;
+    --c5:#5b8def;
+    --c6:#b18cff;
+    --c7:#ff7cd1;
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:
+      radial-gradient(1200px 600px at 70% -10%, #161e2c 0%, transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, #1a1220 0%, transparent 55%),
+      var(--bg-0);
+    color:var(--text);
+    font-family:'Space Grotesk', system-ui, sans-serif;
+    font-size:13px;
+    -webkit-font-smoothing:antialiased;
+    user-select:none;
+  }
+
+  /* ===== Layout ===== */
+  .app{
+    display:grid;
+    grid-template-rows:44px 56px 1fr 26px;
+    height:100vh;
+  }
+
+  /* ===== Title bar ===== */
+  .titlebar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 14px;
+    background:linear-gradient(180deg,#0d1119,#0a0d12);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:10px}
+  .brand-mark{
+    width:22px;height:22px;border-radius:5px;
+    background:linear-gradient(135deg,var(--accent),#ff7080);
+    display:grid;place-items:center;
+    box-shadow:0 0 0 1px #00000040, 0 6px 16px -8px var(--accent);
+    font-family:'JetBrains Mono', monospace;
+    font-weight:800;font-size:12px;color:#fff;
+  }
+  .brand-name{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:700;font-size:13px;letter-spacing:.04em;
+  }
+  .brand-name .sub{color:var(--text-mute);font-weight:500}
+  .menu{display:flex;gap:2px}
+  .menu button{
+    background:none;border:none;color:var(--text-dim);
+    padding:6px 10px;border-radius:6px;cursor:pointer;
+    font-family:inherit;font-size:12.5px;
+  }
+  .menu button:hover{background:var(--bg-2);color:var(--text)}
+  .titlebar-right{display:flex;align-items:center;gap:14px}
+  .device-pill{
+    display:flex;align-items:center;gap:8px;
+    padding:5px 10px;
+    background:var(--bg-2);border:1px solid var(--line);
+    border-radius:999px;
+    font-family:'JetBrains Mono', monospace;font-size:11px;
+    color:var(--text-dim);
+  }
+  .device-pill .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:var(--ok);
+    box-shadow:0 0 0 3px #3ddc8422, 0 0 8px var(--ok);
+    animation:pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse{50%{opacity:.5}}
+  .win-controls{display:flex;gap:8px}
+  .win-controls span{
+    width:12px;height:12px;border-radius:50%;background:var(--bg-3);
+  }
+  .win-controls span:nth-child(1){background:#ff5f57}
+  .win-controls span:nth-child(2){background:#febc2e}
+  .win-controls span:nth-child(3){background:#28c840}
+
+  /* ===== Toolbar ===== */
+  .toolbar{
+    display:flex;align-items:center;gap:14px;
+    padding:0 14px;
+    background:var(--bg-1);
+    border-bottom:1px solid var(--line);
+  }
+  .tool-group{display:flex;align-items:center;gap:6px}
+  .tool-sep{width:1px;height:28px;background:var(--line)}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;
+    padding:8px 12px;border-radius:8px;cursor:pointer;
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    color:var(--text);
+    font-family:inherit;font-size:12.5px;font-weight:500;
+    transition:all .15s ease;
+  }
+  .btn:hover{background:var(--bg-3);border-color:#2c394d}
+  .btn.icon{padding:8px;width:34px;height:34px;justify-content:center}
+  .btn.primary{
+    background:linear-gradient(180deg,#ff4555,#e62b3b);
+    border-color:#ff5b6a;color:#fff;
+    box-shadow:0 4px 14px -6px var(--accent), inset 0 1px 0 #ffffff22;
+  }
+  .btn.primary:hover{background:linear-gradient(180deg,#ff5b6a,#ff3344)}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--text-dim)}
+  .btn.ghost:hover{background:var(--bg-2);color:var(--text)}
+  .btn .kbd{
+    font-family:'JetBrains Mono',monospace;font-size:10px;
+    background:#00000044;padding:1px 5px;border-radius:3px;
+    color:var(--text-mute);margin-left:4px;
+  }
+
+  .select{
+    display:inline-flex;align-items:center;gap:6px;
+    background:var(--bg-2);border:1px solid var(--line);
+    border-radius:8px;padding:7px 10px;
+    font-family:'JetBrains Mono',monospace;font-size:12px;
+    cursor:pointer;color:var(--text);
+  }
+  .select:hover{border-color:#2c394d}
+  .select .label{color:var(--text-mute);font-family:'Space Grotesk',sans-serif;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+  .select .val{color:var(--text);font-weight:600}
+
+  .status-readout{
+    margin-left:auto;
+    display:flex;gap:18px;align-items:center;
+    font-family:'JetBrains Mono', monospace;font-size:11.5px;
+  }
+  .readout-item{display:flex;flex-direction:column;line-height:1.1}
+  .readout-item .k{color:var(--text-mute);font-size:9.5px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px}
+  .readout-item .v{color:var(--text);font-weight:600;font-size:12.5px}
+  .readout-item .v.accent{color:var(--accent)}
+  .readout-item .v.amber{color:var(--amber)}
+  .readout-item .v.ok{color:var(--ok)}
+
+  /* ===== Main grid ===== */
+  .main{
+    display:grid;
+    grid-template-columns:264px 1fr 320px;
+    min-height:0;
+  }
+
+  /* ===== Sidebar (channels) ===== */
+  .sidebar{
+    background:var(--bg-1);
+    border-right:1px solid var(--line);
+    display:flex;flex-direction:column;
+    min-height:0;
+  }
+  .panel-h{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 14px 8px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--text-mute);
+  }
+  .panel-h .count{
+    color:var(--text-dim);font-weight:600;
+  }
+  .channel-list{
+    flex:1;overflow-y:auto;padding:0 8px 8px;
+  }
+  .channel{
+    display:grid;
+    grid-template-columns:18px 14px 1fr auto;
+    align-items:center;gap:8px;
+    padding:8px 8px;
+    border-radius:8px;
+    margin-bottom:2px;
+    cursor:pointer;
+    transition:background .12s;
+  }
+  .channel:hover{background:var(--bg-2)}
+  .channel.active{background:var(--bg-2);box-shadow:inset 2px 0 0 var(--accent)}
+  .channel .swatch{
+    width:10px;height:10px;border-radius:3px;
+    box-shadow:0 0 0 1px #00000050, 0 0 10px currentColor;
+  }
+  .channel .name{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;font-weight:600;
+  }
+  .channel .label{
+    font-size:11px;color:var(--text-mute);margin-left:6px;font-family:'Space Grotesk',sans-serif;
+  }
+  .channel .eye{
+    color:var(--text-mute);font-size:14px;width:18px;text-align:center;
+  }
+  .channel.hidden .name,.channel.hidden .label{opacity:.35}
+  .channel.hidden .swatch{opacity:.25}
+
+  .toggle{
+    width:28px;height:16px;border-radius:999px;background:#22304a;
+    position:relative;cursor:pointer;flex-shrink:0;
+  }
+  .toggle::after{
+    content:"";position:absolute;left:2px;top:2px;
+    width:12px;height:12px;border-radius:50%;background:#5a677a;
+    transition:all .18s;
+  }
+  .toggle.on{background:var(--accent-soft)}
+  .toggle.on::after{left:14px;background:var(--accent);box-shadow:0 0 8px var(--accent)}
+
+  /* Trigger panel */
+  .trigger-panel{
+    border-top:1px solid var(--line);
+    padding:12px 14px 14px;
+    background:linear-gradient(180deg,#0d1219,#0b0f15);
+  }
+  .trigger-row{
+    display:grid;grid-template-columns:50px 1fr;
+    align-items:center;gap:8px;
+    padding:5px 0;font-family:'JetBrains Mono', monospace;font-size:11.5px;
+  }
+  .trigger-row .ch{color:var(--text-dim);font-weight:600}
+  .edges{display:flex;gap:3px}
+  .edge-btn{
+    flex:1;padding:5px 0;text-align:center;
+    background:var(--bg-2);border:1px solid var(--line);
+    border-radius:5px;cursor:pointer;font-family:inherit;font-size:11px;
+    color:var(--text-mute);
+  }
+  .edge-btn:hover{color:var(--text);border-color:#2c394d}
+  .edge-btn.active{
+    background:var(--accent-soft);color:var(--accent);
+    border-color:#ff334466;
+  }
+
+  /* ===== Center waveform area ===== */
+  .stage{
+    background:var(--bg-0);
+    display:flex;flex-direction:column;
+    min-width:0;min-height:0;
+    position:relative;
+  }
+  .time-ruler{
+    height:30px;
+    background:var(--bg-1);
+    border-bottom:1px solid var(--line);
+    position:relative;
+    overflow:hidden;
+  }
+  .waveform-area{
+    flex:1;position:relative;min-height:0;
+    overflow:hidden;
+  }
+  #waveCanvas{display:block;width:100%;height:100%}
+  .crosshair-info{
+    position:absolute;top:10px;right:14px;
+    background:#0a0d12dd;backdrop-filter:blur(8px);
+    border:1px solid var(--line);
+    border-radius:8px;padding:8px 12px;
+    font-family:'JetBrains Mono', monospace;font-size:11px;
+    color:var(--text-dim);
+    pointer-events:none;
+    display:flex;gap:14px;
+  }
+  .crosshair-info .k{color:var(--text-mute);margin-right:6px;text-transform:uppercase;font-size:9.5px;letter-spacing:.1em}
+  .crosshair-info .v{color:var(--text);font-weight:600}
+
+  /* Zoom controls overlay */
+  .zoom-bar{
+    position:absolute;bottom:14px;left:50%;
+    transform:translateX(-50%);
+    display:flex;align-items:center;gap:6px;
+    background:#0a0d12cc;backdrop-filter:blur(10px);
+    border:1px solid var(--line);
+    border-radius:10px;padding:5px;
+    box-shadow:0 10px 28px -10px #000;
+  }
+  .zoom-bar button{
+    background:transparent;border:none;color:var(--text-dim);
+    width:30px;height:28px;border-radius:6px;cursor:pointer;
+    font-family:'JetBrains Mono', monospace;font-size:13px;
+    transition:all .12s;
+  }
+  .zoom-bar button:hover{background:var(--bg-2);color:var(--text)}
+  .zoom-bar .zoom-level{
+    font-family:'JetBrains Mono', monospace;font-size:11px;
+    color:var(--text);padding:0 8px;min-width:64px;text-align:center;
+    border-left:1px solid var(--line);border-right:1px solid var(--line);
+  }
+
+  /* ===== Right panel ===== */
+  .rightpane{
+    background:var(--bg-1);
+    border-left:1px solid var(--line);
+    display:flex;flex-direction:column;
+    min-height:0;
+  }
+  .tabs{
+    display:flex;border-bottom:1px solid var(--line);
+    background:var(--bg-1);
+  }
+  .tab{
+    flex:1;padding:11px 8px;text-align:center;
+    font-family:'JetBrains Mono', monospace;
+    font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--text-mute);cursor:pointer;
+    border-bottom:2px solid transparent;
+    transition:all .15s;
+  }
+  .tab:hover{color:var(--text-dim)}
+  .tab.active{color:var(--text);border-bottom-color:var(--accent)}
+  .tab-content{flex:1;overflow-y:auto;padding:14px;min-height:0;display:none}
+  .tab-content.active{display:block}
+
+  .section-title{
+    font-family:'JetBrains Mono', monospace;
+    font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--text-mute);
+    margin:14px 0 8px;
+  }
+  .section-title:first-child{margin-top:0}
+
+  /* Decoder cards */
+  .decoder-card{
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:12px;
+    margin-bottom:10px;
+  }
+  .decoder-head{
+    display:flex;align-items:center;justify-content:space-between;
+    margin-bottom:8px;
+  }
+  .decoder-name{
+    display:flex;align-items:center;gap:8px;
+    font-family:'JetBrains Mono', monospace;
+    font-weight:700;font-size:12.5px;
+  }
+  .proto-badge{
+    padding:2px 6px;border-radius:4px;
+    font-size:9.5px;font-weight:700;letter-spacing:.08em;
+  }
+  .proto-uart{background:#3dc1d322;color:#3dc1d3}
+  .proto-i2c{background:#ffb02022;color:var(--amber)}
+  .proto-spi{background:#b18cff22;color:#b18cff}
+  .decoder-meta{
+    font-family:'JetBrains Mono', monospace;font-size:10.5px;color:var(--text-mute);
+    display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;
+  }
+  .decoder-meta b{color:var(--text-dim);font-weight:500}
+  .decoder-frames{
+    margin-top:10px;
+    background:var(--bg-0);
+    border-radius:6px;
+    padding:8px;
+    font-family:'JetBrains Mono', monospace;font-size:11px;
+    max-height:120px;overflow-y:auto;
+  }
+  .frame-row{display:flex;gap:8px;padding:2px 0;color:var(--text-dim)}
+  .frame-row .t{color:var(--text-mute);font-size:10px;min-width:54px}
+  .frame-row .hex{color:#ffe066}
+  .frame-row .ascii{color:#3ddc84}
+
+  /* Measurement table */
+  .meas-table{
+    background:var(--bg-2);border:1px solid var(--line);
+    border-radius:10px;overflow:hidden;
+  }
+  .meas-row{
+    display:grid;grid-template-columns:24px 60px 1fr 1fr;
+    padding:9px 10px;
+    align-items:center;
+    border-bottom:1px solid var(--line-soft);
+    font-family:'JetBrains Mono', monospace;font-size:11.5px;
+  }
+  .meas-row:last-child{border-bottom:none}
+  .meas-row .sw{width:9px;height:9px;border-radius:2px;box-shadow:0 0 6px currentColor}
+  .meas-row .ch{color:var(--text-dim);font-weight:600}
+  .meas-row .freq{color:var(--text)}
+  .meas-row .duty{color:var(--text-dim);text-align:right}
+  .meas-row .duty .pct{color:var(--amber)}
+
+  /* Cursors */
+  .cursor-block{
+    background:var(--bg-2);border:1px solid var(--line);
+    border-radius:10px;padding:12px;
+  }
+  .cur-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:5px 0;
+    font-family:'JetBrains Mono', monospace;font-size:11.5px;
+  }
+  .cur-row .lbl{color:var(--text-mute);display:flex;align-items:center;gap:8px}
+  .cur-row .lbl::before{
+    content:"";width:2px;height:12px;background:currentColor;
+  }
+  .cur-a{color:#5b8def}
+  .cur-b{color:var(--amber)}
+  .cur-delta{color:var(--accent)}
+  .cur-row .val{color:var(--text);font-weight:600}
+
+  /* ===== Status bar ===== */
+  .statusbar{
+    background:var(--bg-1);
+    border-top:1px solid var(--line);
+    display:flex;align-items:center;
+    padding:0 14px;
+    gap:18px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:10.5px;color:var(--text-mute);
+    letter-spacing:.04em;
+  }
+  .statusbar .item{display:flex;gap:6px}
+  .statusbar .item b{color:var(--text-dim);font-weight:500}
+  .statusbar .spacer{flex:1}
+  .statusbar .blink{
+    width:6px;height:6px;border-radius:50%;background:var(--ok);
+    box-shadow:0 0 6px var(--ok);
+    animation:blink 1.4s ease-in-out infinite;
+  }
+  @keyframes blink{50%{opacity:.3}}
+
+  /* Scrollbars */
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--bg-3);border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:#2c394d}
+
+  /* SVG icons */
+  .ic{width:14px;height:14px;flex-shrink:0}
+  .ic.lg{width:16px;height:16px}
+
+  /* Dropdown menu */
+  .dropdown{position:relative}
+  .dropdown-menu{
+    position:absolute;top:calc(100% + 4px);left:0;z-index:50;
+    background:var(--bg-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:4px;min-width:140px;
+    box-shadow:0 12px 30px -10px #000;
+    display:none;
+  }
+  .dropdown.open .dropdown-menu{display:block}
+  .dropdown-menu button{
+    display:block;width:100%;text-align:left;
+    padding:7px 10px;background:none;border:none;
+    color:var(--text);font-family:'JetBrains Mono', monospace;font-size:11.5px;
+    border-radius:5px;cursor:pointer;
+  }
+  .dropdown-menu button:hover{background:var(--bg-3)}
+  .dropdown-menu button.active{color:var(--accent)}
+
+  .recording-banner{
+    position:absolute;top:14px;left:14px;
+    display:flex;align-items:center;gap:8px;
+    background:#0a0d12dd;backdrop-filter:blur(10px);
+    border:1px solid var(--accent);
+    border-radius:8px;padding:6px 12px;
+    font-family:'JetBrains Mono', monospace;font-size:11px;
+    color:var(--accent);font-weight:600;
+    display:none;
+  }
+  .recording-banner.show{display:flex}
+  .recording-banner .rec-dot{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--accent);
+    animation:rec 1s ease-in-out infinite;
+  }
+  @keyframes rec{50%{opacity:.2}}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== Title bar ===== -->
+  <div class="titlebar">
+    <div class="brand">
+      <div class="brand-mark">L</div>
+      <div class="brand-name">PicoScope<span class="sub">LA</span></div>
+      <div class="menu">
+        <div class="dropdown" id="fileMenu">
+          <button onclick="toggleMenu('fileMenu')">File</button>
+          <div class="dropdown-menu">
+            <button onclick="openCapture()">Open Capture…</button>
+            <button onclick="saveCapture()">Save Capture</button>
+            <button onclick="exportData('csv')">Export CSV</button>
+            <button onclick="exportData('vcd')">Export VCD</button>
+            <button onclick="exportData('png')">Export PNG</button>
+          </div>
+        </div>
+        <button>Edit</button>
+        <button>View</button>
+        <div class="dropdown" id="decodeMenu">
+          <button onclick="toggleMenu('decodeMenu')">Decode</button>
+          <div class="dropdown-menu">
+            <button onclick="addDecoder('UART')">Add UART…</button>
+            <button onclick="addDecoder('I2C')">Add I²C…</button>
+            <button onclick="addDecoder('SPI')">Add SPI…</button>
+            <button onclick="addDecoder('1-Wire')">Add 1-Wire…</button>
+            <button onclick="addDecoder('CAN')">Add CAN bus…</button>
+          </div>
+        </div>
+        <button>Help</button>
+      </div>
+    </div>
+    <div class="titlebar-right">
+      <div class="device-pill">
+        <span class="dot"></span>
+        <span>ESP32 · Đang kết nối...</span>
+      </div>
+      <div class="win-controls">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Toolbar ===== -->
+  <div class="toolbar">
+    <div class="tool-group">
+      <button class="btn primary" id="captureBtn" onclick="toggleCapture()">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="6 4 20 12 6 20 6 4"/>
+        </svg>
+        <span id="captureLabel">Start Capture</span>
+        <span class="kbd">F5</span>
+      </button>
+      <button class="btn icon" title="Stop">
+        <svg class="ic" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+      </button>
+      <button class="btn icon" title="Re-arm trigger">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </button>
+    </div>
+    <div class="tool-sep"></div>
+
+    <div class="tool-group">
+      <div class="select" onclick="cycleSampleRate()">
+        <span class="label">Rate</span>
+        <span class="val" id="rateLabel">20 MHz</span>
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="select" onclick="cycleSamples()">
+        <span class="label">Samples</span>
+        <span class="val" id="samplesLabel">2 M</span>
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+      <div class="select">
+        <span class="label">Trigger</span>
+        <span class="val">Rising · CH0</span>
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+    </div>
+
+    <div class="tool-sep"></div>
+    <div class="tool-group">
+      <button class="btn ghost" title="Zoom to fit" onclick="zoomFit()">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 14 4 20 10 20"/><polyline points="20 10 20 4 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/>
+        </svg>
+        Fit
+      </button>
+      <button class="btn ghost" title="Add cursor" onclick="toggleCursors()">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="12" y1="2" x2="12" y2="22"/><polyline points="6 12 12 18 18 12"/>
+        </svg>
+        Cursors
+      </button>
+      <button class="btn ghost" title="Measure">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12h20"/><path d="M6 8v8"/><path d="M10 9v6"/><path d="M14 7v10"/><path d="M18 9v6"/>
+        </svg>
+        Measure
+      </button>
+    </div>
+
+    <div class="status-readout">
+      <div class="readout-item">
+        <span class="k">Sample Rate</span>
+        <span class="v ok" id="rRate">20.00 MS/s</span>
+      </div>
+      <div class="readout-item">
+        <span class="k">Duration</span>
+        <span class="v" id="rDur">68.69 ms</span>
+      </div>
+      <div class="readout-item">
+        <span class="k">Samples</span>
+        <span class="v amber" id="rSamp">1,717,203</span>
+      </div>
+      <div class="readout-item">
+        <span class="k">Buffer</span>
+        <span class="v" id="rBuf">82%</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Main ===== -->
+  <div class="main">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="panel-h">
+        <span>Channels</span><span class="count" id="chCount">8 / 8</span>
+      </div>
+      <div class="channel-list" id="chanList"></div>
+
+      <div class="trigger-panel">
+        <div class="panel-h" style="padding:0 0 8px">
+          <span>Trigger Conditions</span>
+        </div>
+        <div id="triggerRows"></div>
+      </div>
+    </aside>
+
+    <!-- Stage -->
+    <main class="stage">
+      <div class="time-ruler">
+        <canvas id="rulerCanvas"></canvas>
+      </div>
+      <div class="waveform-area" id="waveArea">
+        <canvas id="waveCanvas"></canvas>
+        <div class="recording-banner" id="recBanner">
+          <span class="rec-dot"></span>
+          <span>RECORDING · ARMED</span>
+        </div>
+        <div class="crosshair-info">
+          <div><span class="k">T:</span><span class="v" id="cursorT">— µs</span></div>
+          <div><span class="k">CH:</span><span class="v" id="cursorCh">—</span></div>
+          <div><span class="k">Δ:</span><span class="v" id="cursorD">— µs</span></div>
+        </div>
+        <div class="zoom-bar">
+          <button onclick="zoomIn()" title="Zoom in">+</button>
+          <span class="zoom-level" id="zoomLevel">1.00×</span>
+          <button onclick="zoomOut()" title="Zoom out">−</button>
+          <button onclick="panLeft()" title="Pan left">‹</button>
+          <button onclick="panRight()" title="Pan right">›</button>
+          <button onclick="zoomFit()" title="Fit">⤢</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- Right pane -->
+    <aside class="rightpane">
+      <div class="tabs">
+        <div class="tab active" data-tab="decoders" onclick="switchTab('decoders')">Decoders</div>
+        <div class="tab" data-tab="measure" onclick="switchTab('measure')">Measure</div>
+        <div class="tab" data-tab="cursors" onclick="switchTab('cursors')">Cursors</div>
+      </div>
+
+      <div class="tab-content active" id="tab-decoders">
+        <div id="decoderCardsContainer"></div>
+      </div>
+
+      <div class="tab-content" id="tab-measure">
+        <div class="section-title">Frequency · Duty Cycle · Edges</div>
+        <div class="meas-table" id="measTable"></div>
+
+        <div class="section-title" style="margin-top:18px">Time Statistics</div>
+        <div class="meas-table">
+          <div class="meas-row" style="grid-template-columns:1fr 1fr">
+            <span style="color:var(--text-mute)">Min Pulse Width</span>
+            <span style="text-align:right">40 ns</span>
+          </div>
+          <div class="meas-row" style="grid-template-columns:1fr 1fr">
+            <span style="color:var(--text-mute)">Max Pulse Width</span>
+            <span style="text-align:right">12.4 ms</span>
+          </div>
+          <div class="meas-row" style="grid-template-columns:1fr 1fr">
+            <span style="color:var(--text-mute)">Total Edges</span>
+            <span style="text-align:right;color:var(--amber)">1,067</span>
+          </div>
+          <div class="meas-row" style="grid-template-columns:1fr 1fr">
+            <span style="color:var(--text-mute)">Capture Length</span>
+            <span style="text-align:right;color:var(--ok)">68.688 ms</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-cursors">
+        <div class="section-title">Cursor Positions</div>
+        <div class="cursor-block">
+          <div class="cur-row"><span class="lbl cur-a">Cursor A</span><span class="val" id="curA">12.450 ms</span></div>
+          <div class="cur-row"><span class="lbl cur-b">Cursor B</span><span class="val" id="curB">28.920 ms</span></div>
+          <div class="cur-row"><span class="lbl cur-delta">Δ B − A</span><span class="val" id="curDelta">16.470 ms</span></div>
+          <div class="cur-row"><span class="lbl cur-delta">1 / Δ</span><span class="val" id="curFreq">60.72 Hz</span></div>
+        </div>
+
+        <div class="section-title">Markers</div>
+        <div class="cursor-block">
+          <div class="cur-row"><span class="lbl" style="color:#3ddc84">M1 · Trigger</span><span class="val">0.000 µs</span></div>
+          <div class="cur-row"><span class="lbl" style="color:#ffe066">M2 · Start I²C</span><span class="val">142.4 µs</span></div>
+          <div class="cur-row"><span class="lbl" style="color:#b18cff">M3 · UART byte</span><span class="val">3.214 ms</span></div>
+        </div>
+
+        <button class="btn" style="width:100%;justify-content:center;margin-top:10px">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Marker
+        </button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- ===== Status bar ===== -->
+  <div class="statusbar">
+    <div class="item"><span class="blink"></span> <b>READY</b></div>
+    <div class="item"><b>Device:</b> Raspberry Pi Pico 2 (RP2350)</div>
+    <div class="item"><b>Firmware:</b> v1.4.2</div>
+    <div class="item"><b>Driver:</b> sigrok-cli 0.7.2</div>
+    <div class="spacer"></div>
+    <div class="item">Sample rate <b id="sbRate">20 MS/s</b></div>
+    <div class="item">CPU <b>4%</b></div>
+    <div class="item">USB <b>HS · 480 Mbps</b></div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   PicoScope LA — Logic Analyzer Desktop UI
+   ============================================================ */
+
+const CHANNEL_COLORS = [
+  '#ff5b6a','#ffb020','#ffe066','#3ddc84',
+  '#3dc1d3','#5b8def','#b18cff','#ff7cd1'
+];
+const CHANNEL_LABELS = [
+  'I²C SCL','I²C SDA','UART TX','SPI MOSI',
+  'SPI MISO','SPI SCK','SPI CS','UART RX'
+];
+
+const state = {
+  channels: Array.from({length:8}, (_,i) => ({
+    id:i, name:`CH${i}`, label:CHANNEL_LABELS[i],
+    color:CHANNEL_COLORS[i], visible:true,
+  })),
+  capture: {
+    sampleRate: 20_000_000,
+    samples: 1_717_203,
+    duration: 0,
+  },
+  view: {
+    xStart: 0,        // sample index
+    xEnd: 1_717_203,  // sample index
+    zoom: 1,
+  },
+  triggers: [
+    {ch:0, mode:'rising'},  {ch:1, mode:'none'},
+    {ch:2, mode:'none'},    {ch:3, mode:'none'},
+    {ch:4, mode:'none'},    {ch:5, mode:'none'},
+    {ch:6, mode:'none'},    {ch:7, mode:'none'},
+  ],
+  cursors:{ a:12_450, b:28_920, active:true },
+  capturing:false,
+  activeTab:'decoders',
+  data: null,
+};
+
+state.capture.duration = state.capture.samples / state.capture.sampleRate;
+
+/* ---------- Protocol Decoder State ---------- */
+const decoders = {
+  uart: {
+    enabled: true,
+    // CH2 = UART TX, CH7 = UART RX (theo sơ đồ đấu dây thực tế)
+    config: { chBit: 2, baud: 115200, dataBits: 8, parity: 'none', stopBits: 1 },
+    frames: [],
+  },
+  i2c: {
+    enabled: true,
+    // CH0 = I2C SCL, CH1 = I2C SDA
+    config: { sclBit: 0, sdaBit: 1 },
+    frames: [],
+  },
+  spi: {
+    enabled: true,
+    // CH3=MOSI, CH4=MISO, CH5=SCK, CH6=CS
+    config: { sckBit: 5, mosiBit: 3, misoBit: 4, csBit: 6,
+              cpol: 0, cpha: 0, csActive: 'low', bitOrder: 'msb' },
+    frames: [],
+  },
+};
+
+/* ---------- Synthetic logic data ---------- */
+function generateData(){
+  const N = state.capture.samples;
+  // Pack 8 channels into one Uint8Array; one byte per sample
+  const buf = new Uint8Array(N);
+  const sr = state.capture.sampleRate;
+
+  // CH0: UART TX @ 115200 baud, ASCII "Hello, Pico!\r\n"
+  // CH1: UART RX @ same baud, ASCII "ACK\r\n"
+  // CH2: I2C SCL @ ~400 kHz bursts
+  // CH3: I2C SDA
+  // CH4: SPI SCK @ 1 MHz bursts
+  // CH5: SPI MOSI (data)
+  // CH6: SPI MISO
+  // CH7: SPI CS (active low)
+
+  // Defaults idle high
+  for (let i=0;i<N;i++) buf[i] = 0xFF;
+
+  // ------ UART TX on CH0 ------
+  function uartByte(startSample, byte){
+    const baud = 115200;
+    const bitSamples = Math.round(sr/baud);
+    let s = startSample;
+    // start bit (low)
+    for (let k=0;k<bitSamples && s+k<N;k++) buf[s+k] &= ~(1<<0);
+    s += bitSamples;
+    // 8 data bits LSB first
+    for (let b=0;b<8;b++){
+      const bit = (byte>>b)&1;
+      for (let k=0;k<bitSamples && s+k<N;k++){
+        if (bit) buf[s+k] |= (1<<0);
+        else     buf[s+k] &= ~(1<<0);
+      }
+      s += bitSamples;
+    }
+    // stop bit high — already high
+    return s + bitSamples;
+  }
+  const txMsg = "Hello, Pico!\r\n";
+  let txPos = Math.floor(sr * 0.002); // start at 2ms
+  for (const c of txMsg){
+    txPos = uartByte(txPos, c.charCodeAt(0));
+    txPos += Math.round(sr/115200) * 2; // small gap
+  }
+
+  // ------ UART RX on CH1 ------
+  function uartByteCh1(startSample, byte){
+    const baud = 115200;
+    const bitSamples = Math.round(sr/baud);
+    let s = startSample;
+    for (let k=0;k<bitSamples && s+k<N;k++) buf[s+k] &= ~(1<<1);
+    s += bitSamples;
+    for (let b=0;b<8;b++){
+      const bit = (byte>>b)&1;
+      for (let k=0;k<bitSamples && s+k<N;k++){
+        if (bit) buf[s+k] |= (1<<1);
+        else     buf[s+k] &= ~(1<<1);
+      }
+      s += bitSamples;
+    }
+    return s + bitSamples;
+  }
+  const rxMsg = "ACK\r\n";
+  let rxPos = Math.floor(sr * 0.0035);
+  for (const c of rxMsg){
+    rxPos = uartByteCh1(rxPos, c.charCodeAt(0));
+    rxPos += Math.round(sr/115200);
+  }
+
+  // ------ I2C on CH2 (SCL) and CH3 (SDA) ------
+  // Generate a few transactions in bursts spread across timeline
+  function i2cTransaction(startSample, addr, data){
+    const period = Math.round(sr / 400_000); // 400 kHz
+    const half = Math.round(period/2);
+    let s = startSample;
+
+    // START: SDA goes low while SCL high
+    for (let k=0;k<half && s+k<N;k++){ buf[s+k] |= (1<<2); buf[s+k] &= ~(1<<3); }
+    s += half;
+
+    function sendByte(byte){
+      for (let b=7;b>=0;b--){
+        // SCL low
+        for (let k=0;k<half && s+k<N;k++){
+          buf[s+k] &= ~(1<<2);
+          if ((byte>>b)&1) buf[s+k] |= (1<<3); else buf[s+k] &= ~(1<<3);
+        }
+        s += half;
+        // SCL high
+        for (let k=0;k<half && s+k<N;k++){
+          buf[s+k] |= (1<<2);
+          if ((byte>>b)&1) buf[s+k] |= (1<<3); else buf[s+k] &= ~(1<<3);
+        }
+        s += half;
+      }
+      // ACK bit: SDA low for one clock
+      for (let k=0;k<half && s+k<N;k++){ buf[s+k] &= ~(1<<2); buf[s+k] &= ~(1<<3); }
+      s += half;
+      for (let k=0;k<half && s+k<N;k++){ buf[s+k] |= (1<<2); buf[s+k] &= ~(1<<3); }
+      s += half;
+    }
+
+    sendByte((addr<<1) | 0);
+    for (const d of data) sendByte(d);
+
+    // STOP: SDA goes high while SCL high
+    for (let k=0;k<half && s+k<N;k++){ buf[s+k] |= (1<<2); buf[s+k] &= ~(1<<3); }
+    s += half;
+    for (let k=0;k<half && s+k<N;k++){ buf[s+k] |= (1<<2); buf[s+k] |= (1<<3); }
+    s += half;
+    return s;
+  }
+  // initial state: SCL=1, SDA=1
+  for (let i=0;i<N;i++){ buf[i] |= (1<<2); buf[i] |= (1<<3); }
+  let i2cPos = Math.floor(sr * 0.0001);
+  i2cPos = i2cTransaction(i2cPos, 0x68, [0x3B, 0x42]);
+  i2cPos += Math.floor(sr * 0.0008);
+  i2cTransaction(i2cPos, 0x50, [0x00, 0xA5, 0x5A]);
+
+  // ------ SPI on CH4..CH7 ------
+  // CS active low burst between ~5ms and ~14ms
+  const csStart = Math.floor(sr * 0.005);
+  const csEnd   = Math.floor(sr * 0.014);
+  for (let i=csStart;i<csEnd && i<N;i++) buf[i] &= ~(1<<7);
+
+  const spiPeriod = Math.round(sr/1_000_000); // 1 MHz
+  const spiHalf = Math.round(spiPeriod/2);
+  let spiPos = csStart + Math.floor(sr * 0.0001);
+  const spiData = [0xA5,0x5A,0xFF,0x00,0xDE,0xAD,0xBE,0xEF,0x12,0x34];
+  let dIdx = 0;
+  while (spiPos + spiPeriod*8 < csEnd && dIdx < spiData.length){
+    const tx = spiData[dIdx];
+    const rx = (~tx) & 0xFF;
+    for (let b=7;b>=0;b--){
+      // low half
+      for (let k=0;k<spiHalf && spiPos+k<N;k++){
+        buf[spiPos+k] &= ~(1<<4);
+        if ((tx>>b)&1) buf[spiPos+k] |= (1<<5); else buf[spiPos+k] &= ~(1<<5);
+        if ((rx>>b)&1) buf[spiPos+k] |= (1<<6); else buf[spiPos+k] &= ~(1<<6);
+      }
+      spiPos += spiHalf;
+      // high half
+      for (let k=0;k<spiHalf && spiPos+k<N;k++){
+        buf[spiPos+k] |= (1<<4);
+        if ((tx>>b)&1) buf[spiPos+k] |= (1<<5); else buf[spiPos+k] &= ~(1<<5);
+        if ((rx>>b)&1) buf[spiPos+k] |= (1<<6); else buf[spiPos+k] &= ~(1<<6);
+      }
+      spiPos += spiHalf;
+    }
+    spiPos += spiPeriod;
+    dIdx++;
+  }
+
+  // Ensure idle high on lines not used
+  for (let i=0;i<N;i++){
+    if (i < csStart || i > csEnd){
+      // SPI SCK idle low when CS inactive — leave as set
+      buf[i] &= ~(1<<4); // SCK low when idle
+    }
+  }
+
+  state.data = buf;
+}
+
+/* ---------- Protocol Decoder Functions ---------- */
+function decodeUART(data, config){
+  const sr = state.capture.sampleRate;
+  const bitSamples = Math.round(sr / config.baud);
+  const mask = 1 << config.chBit;
+  const frames = [];
+  let i = 1;
+  while(i < data.length){
+    const prev = (data[i-1] & mask) !== 0;
+    const curr = (data[i] & mask) !== 0;
+    if(prev && !curr){
+      const startSample = i;
+      let byte = 0;
+      for(let b=0; b<config.dataBits; b++){
+        const sp = i + Math.floor(bitSamples*(1.5+b));
+        if(sp < data.length && (data[sp] & mask)) byte |= (1<<b);
+      }
+      const stopPos = i + Math.floor(bitSamples*(1.5+config.dataBits));
+      const validStop = stopPos < data.length ? (data[stopPos] & mask) !== 0 : false;
+      const endSample = Math.min(i + bitSamples*(1+config.dataBits+config.stopBits), data.length-1);
+      const ascii = byte>=32 && byte<127 ? String.fromCharCode(byte) : '·';
+      frames.push({ type:'uart', startSample, endSample, data:[byte],
+        summary:`0x${byte.toString(16).padStart(2,'0').toUpperCase()} '${ascii}'`,
+        valid:validStop, time:startSample/sr });
+      i = endSample;
+    } else { i++; }
+  }
+  return frames;
+}
+
+function decodeI2C(data, config){
+  const sr = state.capture.sampleRate;
+  const sclMask = 1 << config.sclBit;
+  const sdaMask = 1 << config.sdaBit;
+  const frames = [];
+  let inTx = false, bits = [], bytes = [], bitCnt = 0, bStart = 0;
+  for(let i=1; i<data.length; i++){
+    const pSCL = (data[i-1] & sclMask)!==0, cSCL = (data[i] & sclMask)!==0;
+    const pSDA = (data[i-1] & sdaMask)!==0, cSDA = (data[i] & sdaMask)!==0;
+    if(pSDA && !cSDA && cSCL){
+      inTx = true; bits=[]; bytes=[]; bitCnt=0;
+      frames.push({ type:'i2c', startSample:i, endSample:i+40,
+        summary:'START', eventType:'start', time:i/sr });
+      continue;
+    }
+    if(!pSDA && cSDA && cSCL && inTx){
+      frames.push({ type:'i2c', startSample:i, endSample:i+40,
+        summary:'STOP', eventType:'stop', time:i/sr });
+      inTx = false; continue;
+    }
+    if(!pSCL && cSCL && inTx){
+      if(bitCnt===0) bStart = i;
+      bits.push(cSDA ? 1 : 0);
+      bitCnt++;
+      if(bitCnt===9){
+        let byte=0;
+        for(let b=0;b<8;b++) byte = (byte<<1)|bits[b];
+        const ack = !bits[8];
+        const isAddr = bytes.length===0;
+        let summary;
+        if(isAddr){
+          const addr = byte>>1, rw = (byte&1)?'R':'W';
+          summary = `0x${addr.toString(16).padStart(2,'0').toUpperCase()} ${rw} ${ack?'ACK':'NAK'}`;
+        } else {
+          summary = `0x${byte.toString(16).padStart(2,'0').toUpperCase()} ${ack?'ACK':'NAK'}`;
+        }
+        bytes.push({byte,ack,isAddr});
+        frames.push({ type:'i2c', startSample:bStart, endSample:i,
+          summary, eventType:isAddr?'address':'data', time:bStart/sr });
+        bits=[]; bitCnt=0;
+      }
+    }
+  }
+  return frames;
+}
+
+function decodeSPI(data, config){
+  const sr = state.capture.sampleRate;
+  const sckM = 1<<config.sckBit, mosiM = 1<<config.mosiBit;
+  const misoM = 1<<config.misoBit, csM = 1<<config.csBit;
+  const frames = [];
+  const csOK = v => config.csActive==='low' ? !(v&csM) : !!(v&csM);
+  const riseOK = (config.cpol===0&&config.cpha===0)||(config.cpol===1&&config.cpha===1);
+  let inTx=false, moBits=[], miBits=[], bStart=0;
+  for(let i=1; i<data.length; i++){
+    const pCS=csOK(data[i-1]), cCS=csOK(data[i]);
+    if(!pCS && cCS){ inTx=true; moBits=[]; miBits=[]; }
+    if(pCS && !cCS && inTx){ inTx=false; moBits=[]; miBits=[]; continue; }
+    if(!inTx) continue;
+    const pSCK=(data[i-1]&sckM)!==0, cSCK=(data[i]&sckM)!==0;
+    const edge = riseOK ? (!pSCK&&cSCK) : (pSCK&&!cSCK);
+    if(edge){
+      if(moBits.length===0) bStart=i;
+      moBits.push((data[i]&mosiM)?1:0);
+      miBits.push((data[i]&misoM)?1:0);
+      if(moBits.length===8){
+        let mo=0,mi=0;
+        if(config.bitOrder==='msb'){
+          for(let b=0;b<8;b++){ mo=(mo<<1)|moBits[b]; mi=(mi<<1)|miBits[b]; }
+        } else {
+          for(let b=0;b<8;b++){ mo|=moBits[b]<<b; mi|=miBits[b]<<b; }
+        }
+        frames.push({ type:'spi', startSample:bStart, endSample:i,
+          summary:`TX:${mo.toString(16).padStart(2,'0').toUpperCase()} RX:${mi.toString(16).padStart(2,'0').toUpperCase()}`,
+          data:{mosi:mo,miso:mi}, time:bStart/sr });
+        moBits=[]; miBits=[];
+      }
+    }
+  }
+  return frames;
+}
+
+function runAllDecoders(){
+  if(!state.data) return;
+  if(decoders.uart.enabled) decoders.uart.frames = decodeUART(state.data, decoders.uart.config);
+  else decoders.uart.frames = [];
+  if(decoders.i2c.enabled) decoders.i2c.frames = decodeI2C(state.data, decoders.i2c.config);
+  else decoders.i2c.frames = [];
+  if(decoders.spi.enabled) decoders.spi.frames = decodeSPI(state.data, decoders.spi.config);
+  else decoders.spi.frames = [];
+}
+
+function drawDecoderOverlays(w, h, visible, rowH, sampleStart, N){
+  function s2x(s){ return ((s - sampleStart)/N)*w; }
+  function bitRow(bit){
+    for(let i=0;i<visible.length;i++) if(visible[i].id===bit) return i;
+    return -1;
+  }
+  const cfgs = [
+    {key:'uart', bit:decoders.uart.config.chBit, color:'#3dc1d3'},
+    {key:'i2c',  bit:decoders.i2c.config.sdaBit,  color:'#ffb020'},
+    {key:'spi',  bit:decoders.spi.config.mosiBit,  color:'#b18cff'},
+  ];
+  cfgs.forEach(({key, bit, color}) => {
+    const dec = decoders[key];
+    if(!dec.enabled || !dec.frames.length) return;
+    const row = bitRow(bit);
+    if(row<0) return;
+    const boxH = 16, boxY = row*rowH + rowH - boxH - 6;
+    dec.frames.forEach(f => {
+      const x1 = s2x(f.startSample), x2 = s2x(f.endSample);
+      if(x2<0 || x1>w) return;
+      const bw = Math.max(x2-x1, 24);
+      const rx = Math.max(0, x1);
+      waveCtx.fillStyle = color+'30';
+      waveCtx.strokeStyle = color+'90';
+      waveCtx.lineWidth = 1;
+      waveCtx.fillRect(rx, boxY, bw, boxH);
+      waveCtx.strokeRect(rx, boxY, bw, boxH);
+      waveCtx.fillStyle = color;
+      waveCtx.font = '600 8.5px "JetBrains Mono", monospace';
+      waveCtx.textAlign = 'center';
+      waveCtx.textBaseline = 'middle';
+      waveCtx.save();
+      waveCtx.beginPath();
+      waveCtx.rect(rx, boxY, bw, boxH);
+      waveCtx.clip();
+      waveCtx.fillText(f.summary, rx+bw/2, boxY+boxH/2);
+      waveCtx.restore();
+    });
+  });
+}
+
+/* ---------- Canvas drawing ---------- */
+let waveCanvas, waveCtx, rulerCanvas, rulerCtx;
+
+function setupCanvases(){
+  waveCanvas = document.getElementById('waveCanvas');
+  waveCtx = waveCanvas.getContext('2d');
+  rulerCanvas = document.getElementById('rulerCanvas');
+  rulerCtx = rulerCanvas.getContext('2d');
+  resizeCanvases();
+  window.addEventListener('resize', resizeCanvases);
+}
+
+function resizeCanvases(){
+  const dpr = window.devicePixelRatio || 1;
+  const area = document.getElementById('waveArea');
+  const ruler = document.querySelector('.time-ruler');
+
+  waveCanvas.width = area.clientWidth * dpr;
+  waveCanvas.height = area.clientHeight * dpr;
+  waveCanvas.style.width = area.clientWidth+'px';
+  waveCanvas.style.height = area.clientHeight+'px';
+  waveCtx.setTransform(dpr,0,0,dpr,0,0);
+
+  rulerCanvas.width = ruler.clientWidth * dpr;
+  rulerCanvas.height = ruler.clientHeight * dpr;
+  rulerCanvas.style.width = ruler.clientWidth+'px';
+  rulerCanvas.style.height = ruler.clientHeight+'px';
+  rulerCtx.setTransform(dpr,0,0,dpr,0,0);
+
+  draw();
+}
+
+/* Format a time in seconds with appropriate unit */
+function formatTime(t){
+  const a = Math.abs(t);
+  if (a < 1e-6) return (t*1e9).toFixed(1)+' ns';
+  if (a < 1e-3) return (t*1e6).toFixed(2)+' µs';
+  if (a < 1) return (t*1e3).toFixed(3)+' ms';
+  return t.toFixed(3)+' s';
+}
+function formatRate(r){
+  if (r >= 1e6) return (r/1e6).toFixed(2)+' MS/s';
+  if (r >= 1e3) return (r/1e3).toFixed(2)+' kS/s';
+  return r+' S/s';
+}
+
+function draw(){
+  drawRuler();
+  drawWaves();
+}
+
+function drawRuler(){
+  const w = rulerCanvas.clientWidth, h = rulerCanvas.clientHeight;
+  rulerCtx.clearRect(0,0,w,h);
+
+  // Background
+  rulerCtx.fillStyle = '#0f131a';
+  rulerCtx.fillRect(0,0,w,h);
+
+  // Time range
+  const sr = state.capture.sampleRate;
+  const t0 = state.view.xStart / sr;
+  const t1 = state.view.xEnd / sr;
+  const dt = t1 - t0;
+
+  // Choose tick interval (nice numbers)
+  const targetTicks = Math.max(6, Math.floor(w/110));
+  const raw = dt/targetTicks;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const candidates = [1,2,5,10].map(c => c*pow);
+  let step = candidates[0];
+  for (const c of candidates) if (Math.abs(c-raw) < Math.abs(step-raw)) step = c;
+
+  const firstTick = Math.ceil(t0/step)*step;
+
+  rulerCtx.font = '500 11px "JetBrains Mono", monospace';
+  rulerCtx.textAlign = 'center';
+  rulerCtx.fillStyle = '#8a96a8';
+
+  for (let t = firstTick; t <= t1+step/2; t += step){
+    const x = ((t - t0)/dt) * w;
+    rulerCtx.strokeStyle = '#26344a';
+    rulerCtx.beginPath();
+    rulerCtx.moveTo(x, h-8);
+    rulerCtx.lineTo(x, h);
+    rulerCtx.stroke();
+    rulerCtx.fillText(formatTime(t), x, h-12);
+  }
+
+  // Minor ticks
+  rulerCtx.strokeStyle = '#1a2230';
+  for (let t = firstTick - step; t <= t1+step/2; t += step/5){
+    const x = ((t - t0)/dt) * w;
+    rulerCtx.beginPath();
+    rulerCtx.moveTo(x, h-4);
+    rulerCtx.lineTo(x, h);
+    rulerCtx.stroke();
+  }
+
+  // Bottom border
+  rulerCtx.strokeStyle = '#222d3d';
+  rulerCtx.beginPath();
+  rulerCtx.moveTo(0,h-0.5);
+  rulerCtx.lineTo(w,h-0.5);
+  rulerCtx.stroke();
+}
+
+function drawWaves(){
+  const w = waveCanvas.clientWidth, h = waveCanvas.clientHeight;
+  waveCtx.clearRect(0,0,w,h);
+
+  // Nếu chưa có dữ liệu — vẽ màn hình chờ
+  if (!state.data) {
+    waveCtx.fillStyle = '#0a0d12';
+    waveCtx.fillRect(0, 0, w, h);
+    waveCtx.fillStyle = '#5a677a';
+    waveCtx.font = '15px monospace';
+    waveCtx.textAlign = 'center';
+    waveCtx.textBaseline = 'middle';
+    waveCtx.fillText('⏳ Chờ kết nối ESP32... Bấm Start Capture sau khi badge xanh xuất hiện.', w/2, h/2);
+    return;
+  }
+
+  // Background grid
+  waveCtx.fillStyle = '#0a0d12';
+  waveCtx.fillRect(0,0,w,h);
+
+  const visible = state.channels.filter(c => c.visible);
+  const rowH = h / Math.max(visible.length, 1);
+
+  // Vertical grid lines aligned with ruler
+  const sr = state.capture.sampleRate;
+  const t0 = state.view.xStart / sr;
+  const t1 = state.view.xEnd / sr;
+  const dt = t1 - t0;
+  const targetTicks = Math.max(6, Math.floor(w/110));
+  const raw = dt/targetTicks;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const candidates = [1,2,5,10].map(c => c*pow);
+  let step = candidates[0];
+  for (const c of candidates) if (Math.abs(c-raw) < Math.abs(step-raw)) step = c;
+  const firstTick = Math.ceil(t0/step)*step;
+
+  waveCtx.strokeStyle = '#141b26';
+  waveCtx.lineWidth = 1;
+  for (let t = firstTick; t <= t1+step/2; t += step){
+    const x = ((t - t0)/dt) * w;
+    waveCtx.beginPath();
+    waveCtx.moveTo(Math.floor(x)+0.5, 0);
+    waveCtx.lineTo(Math.floor(x)+0.5, h);
+    waveCtx.stroke();
+  }
+  // minor grid
+  waveCtx.strokeStyle = '#0f1620';
+  for (let t = firstTick - step; t <= t1+step/2; t += step/5){
+    const x = ((t - t0)/dt) * w;
+    waveCtx.beginPath();
+    waveCtx.moveTo(Math.floor(x)+0.5, 0);
+    waveCtx.lineTo(Math.floor(x)+0.5, h);
+    waveCtx.stroke();
+  }
+
+  // Channel row separators
+  waveCtx.strokeStyle = '#151b25';
+  for (let i=1;i<visible.length;i++){
+    const y = i*rowH;
+    waveCtx.beginPath();
+    waveCtx.moveTo(0, y);
+    waveCtx.lineTo(w, y);
+    waveCtx.stroke();
+  }
+
+  // Draw each channel
+  const sampleStart = state.view.xStart;
+  const sampleEnd = state.view.xEnd;
+  const N = sampleEnd - sampleStart;
+  const samplesPerPixel = N / w;
+
+  visible.forEach((ch, idx) => {
+    const yMid = idx*rowH + rowH/2;
+    const yHigh = idx*rowH + rowH*0.22;
+    const yLow = idx*rowH + rowH*0.78;
+
+    // Channel label band
+    waveCtx.fillStyle = ch.color + '10';
+    waveCtx.fillRect(0, idx*rowH, 52, rowH);
+
+    waveCtx.fillStyle = ch.color;
+    waveCtx.font = '700 11.5px "JetBrains Mono", monospace';
+    waveCtx.textAlign = 'left';
+    waveCtx.textBaseline = 'middle';
+    waveCtx.fillText(ch.name, 8, idx*rowH + 13);
+    waveCtx.fillStyle = '#5a677a';
+    waveCtx.font = '500 9px "Space Grotesk", sans-serif';
+    waveCtx.fillText(ch.label, 8, idx*rowH + 26);
+
+    // Waveform path
+    waveCtx.strokeStyle = ch.color;
+    waveCtx.lineWidth = 1.8;
+    waveCtx.lineJoin = 'miter';
+    waveCtx.lineCap = 'butt';
+    waveCtx.shadowColor = ch.color + '88';
+    waveCtx.shadowBlur = 6;
+
+    waveCtx.beginPath();
+    const bitMask = 1 << ch.id;
+
+    let prevHigh = (state.data[Math.max(0,sampleStart)] & bitMask) !== 0;
+    waveCtx.moveTo(0, prevHigh ? yHigh : yLow);
+
+    if (samplesPerPixel <= 1){
+      // upsampled (zoomed in) — draw exact edges
+      let lastX = 0;
+      for (let s = sampleStart; s < sampleEnd; s++){
+        const high = (state.data[s] & bitMask) !== 0;
+        const x = ((s - sampleStart) / N) * w;
+        if (high !== prevHigh){
+          waveCtx.lineTo(x, prevHigh ? yHigh : yLow);
+          waveCtx.lineTo(x, high ? yHigh : yLow);
+          prevHigh = high;
+        }
+        lastX = x;
+      }
+      waveCtx.lineTo(w, prevHigh ? yHigh : yLow);
+    } else {
+      // downsampled (zoomed out) — per pixel min/max approach
+      for (let px = 0; px < w; px++){
+        const s0 = sampleStart + Math.floor(px * samplesPerPixel);
+        const s1 = sampleStart + Math.floor((px+1) * samplesPerPixel);
+        let anyHigh=false, anyLow=false;
+        for (let s = s0; s < s1 && s < state.data.length; s++){
+          if ((state.data[s] & bitMask) !== 0) anyHigh = true;
+          else anyLow = true;
+          if (anyHigh && anyLow) break;
+        }
+        if (anyHigh && anyLow){
+          // transition zone — draw both
+          waveCtx.lineTo(px, yHigh);
+          waveCtx.lineTo(px, yLow);
+        } else if (anyHigh){
+          waveCtx.lineTo(px, yHigh);
+        } else {
+          waveCtx.lineTo(px, yLow);
+        }
+      }
+    }
+    waveCtx.stroke();
+    waveCtx.shadowBlur = 0;
+
+    // Channel divider line on right of label band
+    waveCtx.strokeStyle = '#141b26';
+    waveCtx.beginPath();
+    waveCtx.moveTo(52.5, idx*rowH);
+    waveCtx.lineTo(52.5, (idx+1)*rowH);
+    waveCtx.stroke();
+  });
+
+  // Decoder annotation overlays
+  drawDecoderOverlays(w, h, visible, rowH, sampleStart, N);
+
+  // Cursors
+  if (state.cursors.active){
+    drawCursor(state.cursors.a * 1e-6, '#5b8def', 'A');
+    drawCursor(state.cursors.b * 1e-6, '#ffb020', 'B');
+  }
+
+  // Trigger marker (sample 0)
+  const trigT = 0;
+  const trigX = ((trigT - t0)/dt) * w;
+  if (trigX >= 0 && trigX <= w){
+    waveCtx.strokeStyle = '#ff3344';
+    waveCtx.lineWidth = 1;
+    waveCtx.setLineDash([4,3]);
+    waveCtx.beginPath();
+    waveCtx.moveTo(trigX, 0);
+    waveCtx.lineTo(trigX, h);
+    waveCtx.stroke();
+    waveCtx.setLineDash([]);
+
+    // Trigger flag
+    waveCtx.fillStyle = '#ff3344';
+    waveCtx.beginPath();
+    waveCtx.moveTo(trigX-8, 0);
+    waveCtx.lineTo(trigX+8, 0);
+    waveCtx.lineTo(trigX+8, 12);
+    waveCtx.lineTo(trigX, 18);
+    waveCtx.lineTo(trigX-8, 12);
+    waveCtx.closePath();
+    waveCtx.fill();
+    waveCtx.fillStyle = '#fff';
+    waveCtx.font = '700 9px "JetBrains Mono", monospace';
+    waveCtx.textAlign = 'center';
+    waveCtx.textBaseline = 'middle';
+    waveCtx.fillText('T', trigX, 8);
+  }
+}
+
+function drawCursor(timeSec, color, label){
+  const w = waveCanvas.clientWidth, h = waveCanvas.clientHeight;
+  const sr = state.capture.sampleRate;
+  const t0 = state.view.xStart / sr;
+  const t1 = state.view.xEnd / sr;
+  const dt = t1 - t0;
+  const x = ((timeSec - t0) / dt) * w;
+  if (x < 0 || x > w) return;
+  waveCtx.strokeStyle = color;
+  waveCtx.lineWidth = 1;
+  waveCtx.setLineDash([2,3]);
+  waveCtx.beginPath();
+  waveCtx.moveTo(x, 0);
+  waveCtx.lineTo(x, h);
+  waveCtx.stroke();
+  waveCtx.setLineDash([]);
+
+  // Label badge
+  waveCtx.fillStyle = color;
+  waveCtx.fillRect(x-9, h-18, 18, 14);
+  waveCtx.fillStyle = '#0a0d12';
+  waveCtx.font = '700 10px "JetBrains Mono", monospace';
+  waveCtx.textAlign = 'center';
+  waveCtx.textBaseline = 'middle';
+  waveCtx.fillText(label, x, h-11);
+}
+
+/* ---------- UI building ---------- */
+function renderChannels(){
+  const list = document.getElementById('chanList');
+  list.innerHTML = '';
+  state.channels.forEach(ch => {
+    const div = document.createElement('div');
+    div.className = 'channel' + (ch.visible ? '' : ' hidden');
+    div.style.color = ch.color;
+    div.innerHTML = `
+      <span class="eye" title="${ch.visible?'Hide':'Show'}">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-mute)">
+          ${ch.visible
+            ? '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'
+            : '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+          }
+        </svg>
+      </span>
+      <span class="swatch" style="background:${ch.color};color:${ch.color}"></span>
+      <span><span class="name" style="color:${ch.color}">${ch.name}</span><span class="label">${ch.label}</span></span>
+      <span style="font-family:'JetBrains Mono', monospace;font-size:10px;color:var(--text-mute)">GP${ch.id+2}</span>
+    `;
+    div.querySelector('.eye').addEventListener('click', e => {
+      e.stopPropagation();
+      ch.visible = !ch.visible;
+      renderChannels();
+      draw();
+    });
+    list.appendChild(div);
+  });
+  document.getElementById('chCount').textContent =
+    `${state.channels.filter(c=>c.visible).length} / 8`;
+}
+
+function renderTriggers(){
+  const box = document.getElementById('triggerRows');
+  box.innerHTML = '';
+  state.triggers.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'trigger-row';
+    row.innerHTML = `
+      <span class="ch" style="color:${state.channels[i].color}">CH${i}</span>
+      <div class="edges">
+        <button class="edge-btn ${t.mode==='none'?'active':''}" data-m="none">—</button>
+        <button class="edge-btn ${t.mode==='rising'?'active':''}" data-m="rising">↑</button>
+        <button class="edge-btn ${t.mode==='falling'?'active':''}" data-m="falling">↓</button>
+        <button class="edge-btn ${t.mode==='either'?'active':''}" data-m="either">⇅</button>
+        <button class="edge-btn ${t.mode==='high'?'active':''}" data-m="high">H</button>
+        <button class="edge-btn ${t.mode==='low'?'active':''}" data-m="low">L</button>
+      </div>
+    `;
+    row.querySelectorAll('button').forEach(b => {
+      b.addEventListener('click', () => {
+        t.mode = b.dataset.m;
+        renderTriggers();
+      });
+    });
+    box.appendChild(row);
+  });
+}
+
+function renderMeasurements(){
+  const tbl = document.getElementById('measTable');
+  tbl.innerHTML = '';
+  // Compute frequency/duty/edges per channel from data
+  state.channels.forEach(ch => {
+    if (!ch.visible) return;
+    const bitMask = 1 << ch.id;
+    let edges = 0;
+    let highSamples = 0;
+    let lastEdgeSample = -1;
+    let firstEdge = -1, lastEdge = -1;
+    let prev = (state.data[0] & bitMask) !== 0;
+    const N = state.data.length;
+    // sample every Nth sample for speed
+    const stride = Math.max(1, Math.floor(N / 200000));
+    let totalCounted = 0;
+    for (let s = 0; s < N; s += stride){
+      const high = (state.data[s] & bitMask) !== 0;
+      if (high) highSamples++;
+      totalCounted++;
+      if (high !== prev){
+        edges++;
+        if (firstEdge < 0) firstEdge = s;
+        lastEdge = s;
+        prev = high;
+      }
+    }
+    // estimate freq: edges/2 over duration between first and last edge
+    let freq = 0;
+    if (edges >= 2 && lastEdge > firstEdge){
+      const cycles = edges/2;
+      const dur = (lastEdge - firstEdge) / state.capture.sampleRate;
+      freq = cycles / dur;
+    }
+    const duty = totalCounted ? (highSamples / totalCounted) * 100 : 0;
+
+    let freqStr;
+    if (freq >= 1e6) freqStr = (freq/1e6).toFixed(2)+' MHz';
+    else if (freq >= 1e3) freqStr = (freq/1e3).toFixed(2)+' kHz';
+    else if (freq > 0) freqStr = freq.toFixed(1)+' Hz';
+    else freqStr = '—';
+
+    const row = document.createElement('div');
+    row.className = 'meas-row';
+    row.innerHTML = `
+      <span class="sw" style="background:${ch.color};color:${ch.color}"></span>
+      <span class="ch" style="color:${ch.color}">${ch.name}</span>
+      <span class="freq">${freqStr}</span>
+      <span class="duty">edges <span class="pct">${edges}</span> · <span class="pct">${duty.toFixed(1)}%</span></span>
+    `;
+    tbl.appendChild(row);
+  });
+}
+
+function renderDecoderCards(){
+  const container = document.getElementById('decoderCardsContainer');
+  container.innerHTML = '';
+  const decCfgs = [
+    { key:'uart', label:'UART', badge:'proto-uart', chLabel:'CH0 → CH1',
+      meta:()=>`<span><b>Baud</b> ${decoders.uart.config.baud}</span><span><b>Bits</b> ${decoders.uart.config.dataBits}N1</span><span><b>Parity</b> ${decoders.uart.config.parity}</span><span><b>Stop</b> ${decoders.uart.config.stopBits}</span>` },
+    { key:'i2c', label:'I²C', badge:'proto-i2c', chLabel:'CH2 · CH3',
+      meta:()=>`<span><b>SCL</b> CH${decoders.i2c.config.sclBit}</span><span><b>SDA</b> CH${decoders.i2c.config.sdaBit}</span>` },
+    { key:'spi', label:'SPI', badge:'proto-spi', chLabel:'CH4–CH7',
+      meta:()=>`<span><b>SCK</b> CH${decoders.spi.config.sckBit}</span><span><b>MOSI</b> CH${decoders.spi.config.mosiBit}</span><span><b>MISO</b> CH${decoders.spi.config.misoBit}</span><span><b>CS</b> CH${decoders.spi.config.csBit}</span><span><b>CPOL</b> ${decoders.spi.config.cpol}</span><span><b>CPHA</b> ${decoders.spi.config.cpha}</span>` },
+  ];
+  decCfgs.forEach(cfg => {
+    const dec = decoders[cfg.key];
+    const card = document.createElement('div');
+    card.className = 'decoder-card';
+    const framesHtml = dec.frames.length === 0
+      ? '<div style="color:var(--text-mute);text-align:center;padding:8px">No frames detected</div>'
+      : dec.frames.slice(0,40).map(f => {
+          const t = f.time < 0.001 ? (f.time*1e6).toFixed(1)+' µs' : (f.time*1e3).toFixed(3)+' ms';
+          const isEvt = f.eventType==='start' || f.eventType==='stop';
+          return `<div class="frame-row"><span class="t">${t}</span><span class="${isEvt?'':'hex'}">${f.summary}</span></div>`;
+        }).join('');
+    card.innerHTML = `
+      <div class="decoder-head">
+        <div class="decoder-name">
+          <span class="proto-badge ${cfg.badge}">${cfg.label}</span>
+          <span>${cfg.chLabel}</span>
+        </div>
+        <span class="toggle ${dec.enabled?'on':''}" data-key="${cfg.key}"></span>
+      </div>
+      <div class="decoder-meta">${cfg.meta()}</div>
+      <div class="decoder-frames">${framesHtml}</div>
+      <div style="padding:4px 0;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-mute);text-align:right">${dec.frames.length} frames decoded</div>
+    `;
+    card.querySelector('.toggle').addEventListener('click', function(){
+      dec.enabled = !dec.enabled;
+      this.classList.toggle('on');
+      runAllDecoders();
+      renderDecoderCards();
+      draw();
+    });
+    container.appendChild(card);
+  });
+}
+
+/* ---------- Interactions ---------- */
+function switchTab(id){
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab===id));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-'+id));
+  state.activeTab = id;
+}
+
+function toggleMenu(id){
+  document.querySelectorAll('.dropdown').forEach(d => {
+    if (d.id===id) d.classList.toggle('open');
+    else d.classList.remove('open');
+  });
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.dropdown')){
+    document.querySelectorAll('.dropdown.open').forEach(d => d.classList.remove('open'));
+  }
+});
+
+function toggleCapture(){
+  state.capturing = !state.capturing;
+  const btn = document.getElementById('captureBtn');
+  const lbl = document.getElementById('captureLabel');
+  const banner = document.getElementById('recBanner');
+  if (state.capturing){
+    lbl.textContent = 'Stop Capture';
+    btn.style.background = 'linear-gradient(180deg,#3ddc84,#2cb56b)';
+    btn.style.borderColor = '#3ddc84';
+    banner.classList.add('show');
+    simulateCapture();
+  } else {
+    lbl.textContent = 'Start Capture';
+    btn.style.background = '';
+    btn.style.borderColor = '';
+    banner.classList.remove('show');
+  }
+}
+
+function simulateCapture(){
+  if (!state.capturing) return;
+  // regenerate with slight phase shift simulated by view drift
+  draw();
+  setTimeout(simulateCapture, 240);
+}
+
+const RATES = [
+  {label:'1 MHz', v:1_000_000},
+  {label:'5 MHz', v:5_000_000},
+  {label:'10 MHz', v:10_000_000},
+  {label:'20 MHz', v:20_000_000},
+  {label:'50 MHz', v:50_000_000},
+  {label:'100 MHz', v:100_000_000},
+];
+let rateIdx = 3;
+function cycleSampleRate(){
+  rateIdx = (rateIdx+1) % RATES.length;
+  document.getElementById('rateLabel').textContent = RATES[rateIdx].label;
+  document.getElementById('rRate').textContent = formatRate(RATES[rateIdx].v);
+  document.getElementById('sbRate').textContent = formatRate(RATES[rateIdx].v).replace('S/s','S/s');
+}
+
+const SAMPLES = [
+  {label:'100 k', v:100_000},
+  {label:'500 k', v:500_000},
+  {label:'1 M', v:1_000_000},
+  {label:'2 M', v:1_717_203},
+  {label:'5 M', v:5_000_000},
+  {label:'10 M', v:10_000_000},
+];
+let sampIdx = 3;
+function cycleSamples(){
+  sampIdx = (sampIdx+1) % SAMPLES.length;
+  document.getElementById('samplesLabel').textContent = SAMPLES[sampIdx].label;
+  document.getElementById('rSamp').textContent = SAMPLES[sampIdx].v.toLocaleString();
+}
+
+function zoomIn(){
+  const center = (state.view.xStart + state.view.xEnd) / 2;
+  const half = (state.view.xEnd - state.view.xStart) / 2;
+  state.view.xStart = Math.max(0, Math.floor(center - half*0.6));
+  state.view.xEnd = Math.min(state.capture.samples, Math.floor(center + half*0.6));
+  updateZoomLabel();
+  draw();
+}
+function zoomOut(){
+  const center = (state.view.xStart + state.view.xEnd) / 2;
+  const half = (state.view.xEnd - state.view.xStart) / 2;
+  state.view.xStart = Math.max(0, Math.floor(center - half*1.6));
+  state.view.xEnd = Math.min(state.capture.samples, Math.floor(center + half*1.6));
+  updateZoomLabel();
+  draw();
+}
+function zoomFit(){
+  state.view.xStart = 0;
+  state.view.xEnd = state.capture.samples;
+  updateZoomLabel();
+  draw();
+}
+function panLeft(){
+  const range = state.view.xEnd - state.view.xStart;
+  const shift = Math.floor(range*0.2);
+  state.view.xStart = Math.max(0, state.view.xStart - shift);
+  state.view.xEnd = state.view.xStart + range;
+  draw();
+}
+function panRight(){
+  const range = state.view.xEnd - state.view.xStart;
+  const shift = Math.floor(range*0.2);
+  state.view.xEnd = Math.min(state.capture.samples, state.view.xEnd + shift);
+  state.view.xStart = state.view.xEnd - range;
+  draw();
+}
+function updateZoomLabel(){
+  const z = state.capture.samples / (state.view.xEnd - state.view.xStart);
+  document.getElementById('zoomLevel').textContent = z.toFixed(2)+'×';
+}
+
+function toggleCursors(){
+  state.cursors.active = !state.cursors.active;
+  draw();
+}
+
+function exportData(fmt){
+  alert(`Export ${fmt.toUpperCase()} — capturing ${state.capture.samples.toLocaleString()} samples across 8 channels.`);
+}
+function openCapture(){ alert('Open saved capture (.sr / .vcd / .csv)'); }
+function saveCapture(){ alert('Capture saved to ~/captures/'+Date.now()+'.sr'); }
+function addDecoder(name){ if (name) alert(`Added ${name} decoder. Configure channels in the right panel.`); }
+
+/* Mouse interactions on wave area */
+function setupMouse(){
+  const area = document.getElementById('waveArea');
+
+  area.addEventListener('mousemove', e => {
+    const r = area.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    const sr = state.capture.sampleRate;
+    const t0 = state.view.xStart / sr;
+    const t1 = state.view.xEnd / sr;
+    const t = t0 + (x / r.width) * (t1 - t0);
+
+    document.getElementById('cursorT').textContent = formatTime(t);
+
+    const visible = state.channels.filter(c => c.visible);
+    const rowH = r.height / Math.max(visible.length, 1);
+    const idx = Math.floor(y / rowH);
+    if (idx >= 0 && idx < visible.length){
+      document.getElementById('cursorCh').textContent = visible[idx].name;
+      document.getElementById('cursorCh').style.color = visible[idx].color;
+    }
+
+    // delta from cursor A
+    const dT = t - state.cursors.a * 1e-6;
+    document.getElementById('cursorD').textContent = formatTime(Math.abs(dT));
+  });
+
+  // Wheel to zoom around cursor
+  area.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = area.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const ratio = x / r.width;
+    const range = state.view.xEnd - state.view.xStart;
+    const focus = state.view.xStart + ratio * range;
+    const factor = e.deltaY > 0 ? 1.2 : 0.83;
+    const newRange = Math.max(100, Math.min(state.capture.samples, range * factor));
+    state.view.xStart = Math.max(0, Math.floor(focus - newRange * ratio));
+    state.view.xEnd = Math.min(state.capture.samples, state.view.xStart + newRange);
+    if (state.view.xEnd - state.view.xStart < newRange){
+      state.view.xStart = Math.max(0, state.view.xEnd - newRange);
+    }
+    updateZoomLabel();
+    draw();
+  }, {passive:false});
+
+  // Drag to pan
+  let dragging = false, dragStartX = 0, dragStartView = 0;
+  area.addEventListener('mousedown', e => {
+    dragging = true;
+    dragStartX = e.clientX;
+    dragStartView = state.view.xStart;
+    area.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mouseup', () => {
+    dragging = false;
+    area.style.cursor = '';
+  });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const r = area.getBoundingClientRect();
+    const range = state.view.xEnd - state.view.xStart;
+    const dx = e.clientX - dragStartX;
+    const dSamples = -dx / r.width * range;
+    state.view.xStart = Math.max(0, Math.min(state.capture.samples - range, Math.floor(dragStartView + dSamples)));
+    state.view.xEnd = state.view.xStart + range;
+    draw();
+  });
+}
+
+/* Keyboard shortcuts */
+window.addEventListener('keydown', e => {
+  if (e.key === 'F5'){ e.preventDefault(); toggleCapture(); }
+  else if (e.key === '+' || e.key === '='){ zoomIn(); }
+  else if (e.key === '-'){ zoomOut(); }
+  else if (e.key === '0'){ zoomFit(); }
+  else if (e.key === 'ArrowLeft'){ panLeft(); }
+  else if (e.key === 'ArrowRight'){ panRight(); }
+});
+
+/* ---------- WebSocket Client — Kết nối tới ESP32 ---------- */
+const ws_state = {
+  socket: null,
+  connected: false,
+  autoReconnect: true,
+  expectingRLE: false,
+  rleHeader: null,
+};
+
+// Tự động trỏ WebSocket vào đúng IP của mạch ESP32
+const WS_URL  = `ws://${window.location.host}/ws`;
+
+function wsConnect() {
+  if (ws_state.socket && ws_state.socket.readyState === WebSocket.OPEN) return;
+
+  updateConnectionBadge('connecting');
+  console.log(`[WS] Đang kết nối ${WS_URL}...`);
+
+  ws_state.socket = new WebSocket(WS_URL);
+  ws_state.socket.binaryType = 'arraybuffer'; // Nhận binary dưới dạng ArrayBuffer thay vì Blob
+
+  ws_state.socket.onopen = () => {
+    ws_state.connected = true;
+    updateConnectionBadge('online');
+    console.log('[WS] Kết nối thành công!');
+  };
+
+  ws_state.socket.onclose = () => {
+    ws_state.connected = false;
+    updateConnectionBadge('offline');
+    console.log('[WS] Mất kết nối.');
+    // Tự động thử kết nối lại sau 3 giây
+    if (ws_state.autoReconnect) setTimeout(wsConnect, 3000);
+  };
+
+  ws_state.socket.onerror = (e) => {
+    console.warn('[WS] Lỗi kết nối. Chạy ở chế độ Demo.');
+    updateConnectionBadge('demo');
+  };
+
+  ws_state.socket.onmessage = (event) => {
+    // Nếu là Binary (ArrayBuffer) → đây là cục RLE data từ Pico
+    if (event.data instanceof ArrayBuffer) {
+      const rleData = new Uint8Array(event.data);
+      const totalSamples = ws_state.rleHeader?.samples || 400000;
+      console.log(`[WS] Nhận ${rleData.length} byte RLE (${totalSamples} mẫu mong đợi).`);
+      const decompressed = decompressRLE(rleData, totalSamples);
+      if (decompressed) {
+        state.data = decompressed;
+        // Cập nhật view để khớp đúng số mẫu thực tế
+        state.capture.samples = totalSamples;
+        state.view.xStart = 0;
+        state.view.xEnd = totalSamples;
+        runAllDecoders();
+        draw();
+        renderDecoderCards();
+        renderMeasurements();
+        updateCaptureBtn(false);
+        console.log('[WS] Decode và vẽ xong!');
+      }
+      return;
+    }
+    // Blob fallback (phòng hờ browser cũ)
+    if (event.data instanceof Blob) {
+      event.data.arrayBuffer().then(buf => {
+        const rleData = new Uint8Array(buf);
+        const totalSamples = ws_state.rleHeader?.samples || 400000;
+        console.log(`[WS] Nhận ${rleData.length} byte RLE (Blob).`);
+        const decompressed = decompressRLE(rleData, totalSamples);
+        if (decompressed) {
+          state.data = decompressed;
+          state.capture.samples = totalSamples;
+          state.view.xStart = 0;
+          state.view.xEnd = totalSamples;
+          runAllDecoders();
+          draw();
+          renderDecoderCards();
+          renderMeasurements();
+          updateCaptureBtn(false);
+          console.log('[WS] Decode và vẽ xong! (Blob path)');
+        }
+      });
+      return;
+    }
+
+    // Nếu là Text → JSON message
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'data_hex') {
+        // RLE gửi dưới dạng hex string (phương thức tin cậy hơn binary frame)
+        const totalSamples = msg.samples || 400000;
+        const hex = msg.hex || '';
+        console.log(`[WS] Nhận ${hex.length/2} byte RLE (hex, ${totalSamples} mẫu).`);
+        const rleData = new Uint8Array(hex.length / 2);
+        for (let i = 0; i < hex.length; i += 2) {
+          rleData[i/2] = parseInt(hex.substr(i, 2), 16);
+        }
+        const decompressed = decompressRLE(rleData, totalSamples);
+        if (decompressed) {
+          state.data = decompressed;
+          state.capture.samples = totalSamples;
+          state.view.xStart = 0;
+          state.view.xEnd   = totalSamples;
+          runAllDecoders();
+          draw();
+          renderDecoderCards();
+          renderMeasurements();
+          updateCaptureBtn(false);
+          console.log('[WS] Decode và vẽ xong!');
+        }
+      } else if (msg.type === 'data_rle') {
+        // Header trước binary frame
+        ws_state.rleHeader = msg;
+        ws_state.expectingRLE = true;
+        console.log(`[WS] Chuẩn bị nhận ${msg.length} byte RLE...`);
+      } else if (msg.type === 'status') {
+        if (msg.msg === 'capturing') {
+          updateCaptureBtn(true);
+        } else if (msg.msg === 'stopped' || msg.msg === 'connected') {
+          updateCaptureBtn(false);
+        }
+        console.log(`[WS] Status: ${msg.msg}`);
+      } else if (msg.type === 'error') {
+        console.error(`[WS] Lỗi từ ESP32: ${msg.msg}`);
+        alert(`Lỗi từ thiết bị: ${msg.msg}`);
+        updateCaptureBtn(false);
+      }
+    } catch(e) {
+      console.warn('[WS] Không parse được JSON:', event.data);
+    }
+  };
+}
+
+/* ---------- Giải nén RLE ---------- */
+// Format RLE từ Pico: [value 1B][count 2B][value 1B][count 2B]...
+function decompressRLE(rleData, totalSamples) {
+  const out = new Uint8Array(totalSamples);
+  let rleIdx = 0, outIdx = 0;
+  while (rleIdx + 2 < rleData.length && outIdx < totalSamples) {
+    const val   = rleData[rleIdx];
+    const count = rleData[rleIdx+1] | (rleData[rleIdx+2] << 8);
+    rleIdx += 3;
+    const end = Math.min(outIdx + count, totalSamples);
+    out.fill(val, outIdx, end);
+    outIdx = end;
+  }
+  console.log(`[RLE] Giải nén ${rleData.length}B → ${outIdx} mẫu`);
+  return out;
+}
+
+/* ---------- Cập nhật badge kết nối ---------- */
+function updateConnectionBadge(status) {
+  const pill = document.querySelector('.device-pill');
+  const dot  = document.querySelector('.device-pill .dot');
+  const lbl  = document.querySelector('.device-pill span:last-child');
+  if (!pill) return;
+  dot.className = 'dot';
+  if (status === 'online') {
+    dot.style.background = '#3dc1d3';
+    lbl.textContent = `Pico 2 · WiFi ✓`;
+  } else if (status === 'connecting') {
+    dot.style.background = '#ffb020';
+    lbl.textContent = 'ESP32 · Đang kết nối...';
+  } else if (status === 'offline') {
+    dot.style.background = '#e74c3c';
+    lbl.textContent = 'ESP32 · Mất kết nối';
+  } else {
+    dot.style.background = '#888';
+    lbl.textContent = 'Demo Mode (Không có thiết bị)';
+  }
+}
+
+/* ---------- Cập nhật nút Capture ---------- */
+function updateCaptureBtn(capturing) {
+  const btn = document.getElementById('captureBtn');
+  const lbl = document.getElementById('captureLabel');
+  if (!btn || !lbl) return;
+  if (capturing) {
+    btn.classList.add('capturing');
+    lbl.textContent = 'Capturing...';
+    btn.disabled = true;
+  } else {
+    btn.classList.remove('capturing');
+    lbl.textContent = 'Start Capture';
+    btn.disabled = false;
+  }
+}
+
+/* ---------- Nút Capture: gửi lệnh qua WebSocket ---------- */
+function toggleCapture() {
+  if (ws_state.connected && ws_state.socket?.readyState === WebSocket.OPEN) {
+    // Chế độ thật: gửi lệnh sang ESP32
+    updateCaptureBtn(true);
+    ws_state.socket.send('START_CAPTURE');
+    console.log('[WS] Đã gửi START_CAPTURE');
+  } else {
+    // Chưa kết nối: hiện cảnh báo
+    alert('⚠️ Chưa kết nối WiFi ESP32!\n\nHãy kết nối WiFi: PicoScope_WiFi\nRồi tải lại trang: 192.168.4.1');
+  }
+}
+
+/* ---------- Boot ---------- */
+function boot(){
+  // Không load demo — khởi động với giao diện trống, chờ dữ liệu thật
+  renderChannels();
+  renderTriggers();
+  renderDecoderCards();
+  setupCanvases();
+  setupMouse();
+  updateZoomLabel();
+
+  // Vẽ màn hình chờ trên canvas
+  const ctx = document.getElementById('waveCanvas')?.getContext('2d');
+  if (ctx) {
+    ctx.fillStyle = '#0a0d12';
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.fillStyle = '#5a677a';
+    ctx.font = '16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('⏳ Đang chờ kết nối ESP32 và dữ liệu Capture...', ctx.canvas.width/2, ctx.canvas.height/2);
+  }
+
+  // Kết nối WebSocket tới ESP32
+  updateConnectionBadge('connecting');
+  setTimeout(wsConnect, 500);
+}
+boot();
+</script>
+</body>
+</html>

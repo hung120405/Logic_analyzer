@@ -1,0 +1,5 @@
+{
+    "idf.currentSetup": "/home/hungno/esp/esp-idf",
+    "idf.port": "/dev/ttyUSB0",
+    "idf.flashType": "UART"
+}

@@ -1,34 +1,74 @@
+; =============================================================================
+; logic_analyzer.pio — 2 State Machine: Trigger (SM0) + Capture (SM1)
+; Tần số capture: 20MHz (clk_div = 7.5 từ 150MHz clock của RP2350)
+;
+; SM0 (trigger_watcher): Chờ sườn LÊN trên GP8 (Trigger từ ESP32 GPIO4)
+;                        → bắn IRQ 0 sang SM1 để bắt đầu capture
+; SM1 (logic_analyzer):  Chờ IRQ 0 từ SM0 → capture 8 kênh GP0-GP7 liên tục
+;
+; Kết quả: 8 kênh đo (GP0-GP7) KHÔNG bị chia sẻ với Trigger.
+;          GP8 hoàn toàn dành riêng cho Trigger.
+; =============================================================================
+
+; --- State Machine 0: Trigger Watcher ---
+; Nối với: ESP32 GPIO4 → Pico GP8 (dây thẳng, không qua IC)
+.program trigger_watcher
+
+    wait 0 pin 0    ; Chờ GP8 về LOW trước (đảm bảo trạng thái sạch, tránh trigger giả)
+    wait 1 pin 0    ; Chờ sườn LÊN của GP8 → ESP32 đang bắt đầu phát tín hiệu!
+    irq set 0       ; Bắn IRQ 0 → đánh thức SM1 bắt đầu capture ngay lập tức
+                    ; (SM0 tự động reset về đầu vòng lặp, sẵn sàng cho lần sau)
+
+% c-sdk {
+static inline void trigger_watcher_program_init(PIO pio, uint sm, uint offset, uint trigger_pin) {
+    pio_sm_config c = trigger_watcher_program_get_default_config(offset);
+
+    // Cấu hình chân INPUT cho trigger (GP8)
+    sm_config_set_in_pins(&c, trigger_pin);
+    pio_gpio_init(pio, trigger_pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, trigger_pin, 1, false); // INPUT direction
+
+    // SM0 không cần clkdiv cao, dùng mặc định (chỉ cần phản ứng sườn xung)
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
+
+
+; --- State Machine 1: Data Capture (8 kênh GP0-GP7) ---
+; Chờ IRQ từ SM0 → bắt đầu capture 8 kênh song song @ 20MHz
 .program logic_analyzer
 
-; Dùng .wrap_target/.wrap để PIO tự động lặp lại vòng vô tận
-; mà không tốn thêm 1 cycle cho lệnh jmp — chạy đúng 25MHz
+    wait 1 irq 0    ; Đứng đây chờ IRQ 0 từ SM0 (trigger_watcher)
+                    ; Khi nhận được: tự động clear IRQ, bắt đầu vòng lặp capture
+
+; Vòng lặp capture vô tận: mỗi lần đọc 8 chân, auto-push mỗi 4 mẫu (32-bit)
+; .wrap đảm bảo không tốn thêm cycle — chạy đúng 20MHz tuyệt đối
 .wrap_target
-    in pins, 8
+    in pins, 8      ; Đọc trạng thái 8 chân GP0-GP7 cùng một lúc → ISR
 .wrap
-    
+
 % c-sdk {
 static inline void logic_analyzer_program_init(PIO pio, uint sm, uint offset, uint pin_base, float clk_div) {
     pio_sm_config c = logic_analyzer_program_get_default_config(offset);
 
-    // Cấu hình chân bắt đầu đọc (GPIO 2)
+    // Cấu hình 8 chân INPUT (GP0-GP7)
     sm_config_set_in_pins(&c, pin_base);
-    
-    for(uint i = 0; i < 8; i++) {
+    for (uint i = 0; i < 8; i++) {
         pio_gpio_init(pio, pin_base + i);
     }
 
-    // CẤU HÌNH AUTO-PUSH CỰC KỲ QUAN TRỌNG:
-    // shift_right = false, auto_push = true, push_threshold = 32
-    // Ý nghĩa: Cứ đọc đủ 4 mẫu 8-bit (thành 32-bit) thì PIO tự động nhả ra cho DMA
+    // AUTO-PUSH: cứ đọc đủ 4 mẫu 8-bit (= 32-bit) thì PIO tự đẩy sang DMA
+    // shift_right=false (MSB first), auto_push=true, threshold=32 bit
     sm_config_set_in_shift(&c, false, true, 32);
 
-    // Ghép khối PIO vào các chân GPIO
+    // Tất cả 8 chân GP0-GP7 là INPUT
     pio_sm_set_consecutive_pindirs(pio, sm, pin_base, 8, false);
 
-    // Ép xung PIO. Ví dụ: Chip chạy 150MHz, chia 6 = 25 MHz.
+    // Chia xung: 150MHz / 7.5 = 20MHz
     sm_config_set_clkdiv(&c, clk_div);
 
-    // Khởi động State Machine
+    // Khởi động SM1 (SM1 sẽ đứng chờ IRQ từ SM0 trước khi capture)
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
 }
